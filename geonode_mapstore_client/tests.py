@@ -307,6 +307,34 @@ class RequestConfigurationViewTestCase(GeoNodeBaseTestSupport):
         
         self.assertTrue(token_found, "User token should be present in rules")
 
+    @override_settings(OGC_SERVER={"default": {"PUBLIC_LOCATION": "https://ogc.example.test/geoserver/"}})
+    def test_ogc_public_requests_receive_user_bearer_header(self):
+        """Attach the user's Bearer token to public OGC requests, including WFS-T."""
+        from geonode.base.auth import get_or_create_token
+        from geonode_mapstore_client.handlers import BaseConfigurationRuleHandler
+        from geonode_mapstore_client.registry import RequestConfigurationRulesRegistry
+
+        RequestConfigurationRulesRegistry.REGISTRY = [BaseConfigurationRuleHandler]
+        self.client.force_authenticate(user=self.user)
+        expected_token = get_or_create_token(self.user).token
+
+        response = self.client.get(reverse("request-rules"))
+
+        self.assertEqual(response.status_code, 200)
+        ogc_rule = next(
+            rule for rule in response.json()["rules"]
+            if "ogc.example.test" in rule["urlPattern"]
+        )
+        self.assertEqual(ogc_rule["headers"]["Authorization"], f"Bearer {expected_token}")
+        self.assertRegex(
+            "https://ogc.example.test/geoserver/ows?SERVICE=WFS&REQUEST=Transaction",
+            ogc_rule["urlPattern"],
+        )
+        self.assertNotRegex(
+            "https://other.example.test/geoserver/ows?SERVICE=WFS&REQUEST=Transaction",
+            ogc_rule["urlPattern"],
+        )
+
     def test_only_get_allowed(self):
         """Test that only GET requests are allowed."""
         url = reverse("request-rules")

@@ -38,8 +38,10 @@ import {
     getEndpointUrl,
     getQueryParams,
     UPLOADS,
-    USER_INFO
+    USER_INFO,
+    OIDC_CONFIG
 } from './constants';
+import { getOidcAccessToken } from '@js/utils/OidcTokenUtils';
 
 
 export const getEndpoints = cGetEndpoints;
@@ -478,8 +480,11 @@ export const getUserByPk = (pk, apikey) => {
         .then(({ data }) => data.user);
 };
 
-export const getUserInfo = (apikey) => {
+export const getUserInfo = (apikey, accessToken) => {
     return axios.get(getEndpointUrl(USER_INFO), {
+        headers: {
+            ...(accessToken && { Authorization: `Bearer ${accessToken}` })
+        },
         params: {
             ...(apikey && { apikey })
         }
@@ -489,17 +494,31 @@ export const getUserInfo = (apikey) => {
 
 export const getAccountInfo = () => {
     const apikey = getApiToken();
-    return getUserInfo(apikey)
-        .then((info) => {
-            let {preferred_username: username, sub: pk } = info;
-            pk = Number.isNaN(Number(pk)) ? pk : Number(pk);
-            return {
-                ...info,
-                pk,
-                username,
-                // TODO: remove when the href is provided by the server
-                hrefProfile: `/people/profile/${username}/`
-            };
+    return axios.get(getEndpointUrl(OIDC_CONFIG))
+        .then(async ({ data: oidcConfig }) => {
+            const oidcToken = oidcConfig?.enabled
+                ? await getOidcAccessToken(oidcConfig)
+                : null;
+            return getUserInfo(oidcConfig?.enabled ? null : apikey, oidcToken?.access_token)
+                .then((info) => {
+                    let {preferred_username: username, sub: pk } = info;
+                    pk = Number.isNaN(Number(pk)) ? pk : Number(pk);
+                    const accountInfo = {
+                        ...info,
+                        pk,
+                        username,
+                        // TODO: remove when the href is provided by the server
+                        hrefProfile: `/people/profile/${username}/`
+                    };
+                    if (oidcConfig?.enabled) {
+                        delete accountInfo.access_token;
+                        if (oidcToken) {
+                            accountInfo.access_token = oidcToken.access_token;
+                            accountInfo.oidc_config = oidcConfig;
+                        }
+                    }
+                    return accountInfo;
+                });
         })
         .catch(() => null);
 };

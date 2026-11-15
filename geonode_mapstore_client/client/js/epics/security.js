@@ -41,10 +41,10 @@ const checkSessionInterval = getGeoNodeLocalConfig('geoNodeSettings.checkSession
 /**
  * Epic to fetch request configuration rules and update the store
  */
-export const gnUpdateRequestConfigurationRulesEpic = (action$) =>
+export const gnUpdateRequestConfigurationRulesEpic = (action$, store) =>
     action$.ofType(LOAD_REQUESTS_RULES, RULE_EXPIRED)
         .switchMap(() => {
-            return Observable.defer(() => getRequestRules())
+            return Observable.defer(() => getRequestRules(store.getState()?.security?.token))
                 .switchMap((data) => {
                     const uniqRules = uniqBy(data.rules ?? [], 'urlPattern');
                     return Observable.of(updateRequestsRules(uniqRules));

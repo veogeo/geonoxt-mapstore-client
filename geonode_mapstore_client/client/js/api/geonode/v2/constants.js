@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 import axios from '@mapstore/framework/libs/ajax';
+import { getOidcAccessToken } from '@js/utils/OidcTokenUtils';
 import {
     parseDevHostname,
     getApiToken,
@@ -37,7 +38,8 @@ let endpoints = {
     'metadata': '/api/v2/metadata',
     'assets': '/api/v2/assets',
     'rules': '/api/v2/reqrules',
-    'userinfo': '/api/v2/userinfo/'
+    'userinfo': '/api/v2/userinfo/',
+    'oidc_config': '/api/v2/oidc/config/'
 };
 
 export const RESOURCES = 'resources';
@@ -55,6 +57,7 @@ export const METADATA = 'metadata';
 export const ASSETS = 'assets';
 export const RULES = 'rules';
 export const USER_INFO = 'userinfo';
+export const OIDC_CONFIG = 'oidc_config';
 
 export const LOGIN_URL = '/account/login/';
 
@@ -72,11 +75,19 @@ export const getEndpointUrl = (id, parts) => {
 export const getEndpoints = () => {
     const apikey = getApiToken();
     const endpointV2 = getGeoNodeLocalConfig('geoNodeApi.endpointV2', '/api/v2/');
-    return axios.get(parseDevHostname(endpointV2), {
+    const getApiEndpoints = (apiKey, accessToken) => axios.get(parseDevHostname(endpointV2), {
+        headers: {
+            ...(accessToken && { Authorization: `Bearer ${accessToken}` })
+        },
         params: {
-            ...(apikey && { apikey })
+            ...(apiKey && { apikey: apiKey })
         }
-    })
+    });
+    return axios.get(parseDevHostname(endpoints.oidc_config))
+        .then(async ({ data }) => {
+            const oidcToken = data?.enabled ? await getOidcAccessToken(data) : null;
+            return getApiEndpoints(data?.enabled ? null : apikey, oidcToken?.access_token);
+        }, () => getApiEndpoints(null))
         .then(({ data }) => {
             setEndpoints(data);
             return data;

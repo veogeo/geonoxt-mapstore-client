@@ -2,6 +2,7 @@ from django.urls import reverse
 import os
 import json
 from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 from django.shortcuts import render
 from django.http import Http404, HttpResponseForbidden
 from django.utils.translation.trans_real import get_language_from_request
@@ -248,3 +249,25 @@ class RequestConfigurationView(APIView):
         registry = RequestConfigurationRulesRegistry()
         rules = registry.get_rules(request)
         return Response(rules)
+
+
+class OIDCClientConfigView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        if not getattr(settings, "NOXT_GEOSERVER_CLOUD_ENABLED", False):
+            return Response({"enabled": False}, headers={"Cache-Control": "no-store"})
+
+        return Response(
+            {
+                "enabled": True,
+                "client_id": settings.NOXT_MAPSTORE_OIDC_CLIENT_ID,
+                "discovery_uri": settings.NOXT_MAPSTORE_OIDC_DISCOVERY_URI,
+                "redirect_uri": settings.NOXT_MAPSTORE_OIDC_REDIRECT_URI,
+                "audience": settings.NOXT_GEOSERVER_CLOUD_AUDIENCE,
+                "resource": settings.NOXT_MAPSTORE_OIDC_RESOURCE,
+                "scopes": settings.NOXT_MAPSTORE_OIDC_SCOPES,
+            },
+            headers={"Cache-Control": "no-store"},
+        )
