@@ -496,29 +496,43 @@ export const getAccountInfo = () => {
     const apikey = getApiToken();
     return axios.get(getEndpointUrl(OIDC_CONFIG))
         .then(async ({ data: oidcConfig }) => {
+            let existingOidcToken = null;
+            let sessionInfo = null;
+            if (oidcConfig?.enabled) {
+                existingOidcToken = await getOidcAccessToken(oidcConfig);
+                if (existingOidcToken?.access_token) {
+                    sessionInfo = await getUserInfo(null, existingOidcToken.access_token).catch(() => null);
+                }
+                if (!sessionInfo) sessionInfo = await getUserInfo(null, null).catch(() => null);
+                if (!sessionInfo) return null;
+            } else {
+                sessionInfo = await getUserInfo(apikey, null).catch(() => null);
+                if (!sessionInfo) return null;
+            }
+
             const oidcToken = oidcConfig?.enabled
-                ? await getOidcAccessToken(oidcConfig)
+                ? existingOidcToken || await getOidcAccessToken(oidcConfig, { allowSilentAuthorization: true })
                 : null;
-            return getUserInfo(oidcConfig?.enabled ? null : apikey, oidcToken?.access_token)
-                .then((info) => {
-                    let {preferred_username: username, sub: pk } = info;
-                    pk = Number.isNaN(Number(pk)) ? pk : Number(pk);
-                    const accountInfo = {
-                        ...info,
-                        pk,
-                        username,
-                        // TODO: remove when the href is provided by the server
-                        hrefProfile: `/people/profile/${username}/`
-                    };
-                    if (oidcConfig?.enabled) {
-                        delete accountInfo.access_token;
-                        if (oidcToken) {
-                            accountInfo.access_token = oidcToken.access_token;
-                            accountInfo.oidc_config = oidcConfig;
-                        }
-                    }
-                    return accountInfo;
-                });
+            const info = oidcToken?.access_token
+                ? await getUserInfo(null, oidcToken.access_token).catch(() => sessionInfo)
+                : sessionInfo;
+            let {preferred_username: username, sub: pk } = info;
+            pk = Number.isNaN(Number(pk)) ? pk : Number(pk);
+            const accountInfo = {
+                ...info,
+                pk,
+                username,
+                // TODO: remove when the href is provided by the server
+                hrefProfile: `/people/profile/${username}/`
+            };
+            if (oidcConfig?.enabled) {
+                delete accountInfo.access_token;
+                if (oidcToken) {
+                    accountInfo.access_token = oidcToken.access_token;
+                    accountInfo.oidc_config = oidcConfig;
+                }
+            }
+            return accountInfo;
         })
         .catch(() => null);
 };

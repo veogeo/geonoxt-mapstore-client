@@ -85,8 +85,14 @@ export const getEndpoints = () => {
     });
     return axios.get(parseDevHostname(endpoints.oidc_config))
         .then(async ({ data }) => {
-            const oidcToken = data?.enabled ? await getOidcAccessToken(data) : null;
-            return getApiEndpoints(data?.enabled ? null : apikey, oidcToken?.access_token);
+            if (!data?.enabled) return getApiEndpoints(apikey);
+            const sessionUser = await axios.get(parseDevHostname(endpoints.userinfo))
+                .then(({ data: userInfo }) => userInfo)
+                .catch(() => null);
+            const oidcToken = await getOidcAccessToken(data, {
+                allowSilentAuthorization: Boolean(sessionUser)
+            });
+            return getApiEndpoints(null, oidcToken?.access_token);
         }, () => getApiEndpoints(null))
         .then(({ data }) => {
             setEndpoints(data);
