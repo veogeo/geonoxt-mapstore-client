@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 concurrency:
   group: publish-mapstore-client-${{ github.ref }}
@@ -12,20 +13,20 @@ concurrency:
 
 jobs:
   build-and-publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24.x'
 
       - name: Cache npm downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.npm
           key: ${{ runner.os }}-mapstore-npm-${{ hashFiles('geonode_mapstore_client/client/package.json') }}
@@ -41,7 +42,7 @@ jobs:
         run: npm run compile
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -57,17 +58,39 @@ jobs:
         run: |
           version="$(cat VERSION)"
           short_sha="$(git rev-parse --short=12 HEAD)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "tag=mapstore-client-${version}-${short_sha}" >> "$GITHUB_OUTPUT"
 
+      - name: Install ORAS CLI
+        run: |
+          curl -fsSL https://github.com/oras-project/oras/releases/download/v1.3.6/oras_1.3.6_linux_amd64.tar.gz \
+            | tar -xz oras
+          sudo install oras /usr/local/bin/oras
+
+      - name: Publish wheel to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          wheel=(dist/*.whl)
+          oras push "ghcr.io/veogeo/geonoxt-mapstore-client:${{ steps.release.outputs.tag }}" \
+            --artifact-type application/vnd.python.wheel.v1 \
+            --annotation "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --annotation "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --annotation "org.opencontainers.image.version=${{ steps.release.outputs.version }}" \
+            "${wheel[0]}:application/vnd.python.wheel.v1" \
+            dist/SHA256SUMS:text/plain
+
       - name: Publish wheel release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           target_commitish: ${{ github.sha }}
           name: GeoNode MapStore client ${{ steps.release.outputs.tag }}
           body: |
             MapStore production assets compiled from `${{ github.sha }}` and packaged as a Python wheel.
-            The wheel and its SHA-256 checksum are attached to this release.
+            The wheel is attached to this release and published to GHCR as an OCI artifact.
+            Pull it with `oras pull ghcr.io/veogeo/geonoxt-mapstore-client:${{ steps.release.outputs.tag }}`.
           prerelease: true
           files: |
             dist/*.whl
