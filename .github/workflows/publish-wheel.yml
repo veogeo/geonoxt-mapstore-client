@@ -1,0 +1,75 @@
+name: Publish GeoNode MapStore client wheel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-mapstore-client-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-mapstore-npm-${{ hashFiles('geonode_mapstore_client/client/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-mapstore-npm-
+
+      - name: Install client dependencies
+        working-directory: geonode_mapstore_client/client
+        run: npm install
+
+      - name: Compile production client
+        working-directory: geonode_mapstore_client/client
+        run: npm run compile
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Python wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build --wheel --outdir dist
+          cd dist
+          shasum -a 256 *.whl > SHA256SUMS
+
+      - name: Set release tag
+        id: release
+        run: |
+          version="$(cat VERSION)"
+          short_sha="$(git rev-parse --short=12 HEAD)"
+          echo "tag=mapstore-client-${version}-${short_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish wheel release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: GeoNode MapStore client ${{ steps.release.outputs.tag }}
+          body: |
+            MapStore production assets compiled from `${{ github.sha }}` and packaged as a Python wheel.
+            The wheel and its SHA-256 checksum are attached to this release.
+          prerelease: true
+          files: |
+            dist/*.whl
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
