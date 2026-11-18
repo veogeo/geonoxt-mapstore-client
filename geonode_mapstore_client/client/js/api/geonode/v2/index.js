@@ -41,7 +41,8 @@ import {
     USER_INFO,
     OIDC_CONFIG
 } from './constants';
-import { getOidcAccessToken } from '@js/utils/OidcTokenUtils';
+import { getOidcAccessToken } from '@js/noxt/oidc/OidcTokenUtils';
+import { getOidcAccountInfo } from '@js/noxt/oidc/account';
 
 
 export const getEndpoints = cGetEndpoints;
@@ -480,11 +481,8 @@ export const getUserByPk = (pk, apikey) => {
         .then(({ data }) => data.user);
 };
 
-export const getUserInfo = (apikey, accessToken) => {
+export const getUserInfo = (apikey) => {
     return axios.get(getEndpointUrl(USER_INFO), {
-        headers: {
-            ...(accessToken && { Authorization: `Bearer ${accessToken}` })
-        },
         params: {
             ...(apikey && { apikey })
         }
@@ -495,44 +493,21 @@ export const getUserInfo = (apikey, accessToken) => {
 export const getAccountInfo = () => {
     const apikey = getApiToken();
     return axios.get(getEndpointUrl(OIDC_CONFIG))
-        .then(async ({ data: oidcConfig }) => {
-            let existingOidcToken = null;
-            let sessionInfo = null;
+        .then(async({ data: oidcConfig }) => {
             if (oidcConfig?.enabled) {
-                existingOidcToken = await getOidcAccessToken(oidcConfig);
-                if (existingOidcToken?.access_token) {
-                    sessionInfo = await getUserInfo(null, existingOidcToken.access_token).catch(() => null);
-                }
-                if (!sessionInfo) sessionInfo = await getUserInfo(null, null).catch(() => null);
-                if (!sessionInfo) return null;
-            } else {
-                sessionInfo = await getUserInfo(apikey, null).catch(() => null);
-                if (!sessionInfo) return null;
+                return getOidcAccountInfo(oidcConfig, getOidcAccessToken, () => getUserInfo(null));
             }
-
-            const oidcToken = oidcConfig?.enabled
-                ? existingOidcToken || await getOidcAccessToken(oidcConfig, { allowSilentAuthorization: true })
-                : null;
-            const info = oidcToken?.access_token
-                ? await getUserInfo(null, oidcToken.access_token).catch(() => sessionInfo)
-                : sessionInfo;
-            let {preferred_username: username, sub: pk } = info;
-            pk = Number.isNaN(Number(pk)) ? pk : Number(pk);
-            const accountInfo = {
+            const info = await getUserInfo(apikey).catch(() => null);
+            if (!info) return null;
+            const { preferred_username: username, sub } = info;
+            const pk = Number.isNaN(Number(sub)) ? sub : Number(sub);
+            return {
                 ...info,
                 pk,
                 username,
                 // TODO: remove when the href is provided by the server
                 hrefProfile: `/people/profile/${username}/`
             };
-            if (oidcConfig?.enabled) {
-                delete accountInfo.access_token;
-                if (oidcToken) {
-                    accountInfo.access_token = oidcToken.access_token;
-                    accountInfo.oidc_config = oidcConfig;
-                }
-            }
-            return accountInfo;
         })
         .catch(() => null);
 };

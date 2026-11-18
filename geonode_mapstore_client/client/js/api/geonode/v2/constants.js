@@ -6,7 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 import axios from '@mapstore/framework/libs/ajax';
-import { getOidcAccessToken } from '@js/utils/OidcTokenUtils';
 import {
     parseDevHostname,
     getApiToken,
@@ -75,25 +74,11 @@ export const getEndpointUrl = (id, parts) => {
 export const getEndpoints = () => {
     const apikey = getApiToken();
     const endpointV2 = getGeoNodeLocalConfig('geoNodeApi.endpointV2', '/api/v2/');
-    const getApiEndpoints = (apiKey, accessToken) => axios.get(parseDevHostname(endpointV2), {
-        headers: {
-            ...(accessToken && { Authorization: `Bearer ${accessToken}` })
-        },
+    return axios.get(parseDevHostname(endpointV2), {
         params: {
-            ...(apiKey && { apikey: apiKey })
+            ...(apikey && { apikey })
         }
-    });
-    return axios.get(parseDevHostname(endpoints.oidc_config))
-        .then(async ({ data }) => {
-            if (!data?.enabled) return getApiEndpoints(apikey);
-            const sessionUser = await axios.get(parseDevHostname(endpoints.userinfo))
-                .then(({ data: userInfo }) => userInfo)
-                .catch(() => null);
-            const oidcToken = await getOidcAccessToken(data, {
-                allowSilentAuthorization: Boolean(sessionUser)
-            });
-            return getApiEndpoints(null, oidcToken?.access_token);
-        }, () => getApiEndpoints(null))
+    })
         .then(({ data }) => {
             setEndpoints(data);
             return data;

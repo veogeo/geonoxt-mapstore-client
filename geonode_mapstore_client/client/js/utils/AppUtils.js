@@ -28,8 +28,7 @@ import isFunction from 'lodash/isFunction';
 
 import url from 'url';
 import axios from '@mapstore/framework/libs/ajax';
-import { refreshSuccess } from '@mapstore/framework/actions/security';
-import { refreshOidcAccessTokenIfNeeded } from './OidcTokenUtils';
+import { startOidcTokenRefresh } from '@js/noxt/oidc/OidcTokenRefresh';
 import moment from 'moment';
 import { addLocaleData } from 'react-intl';
 import { setViewer } from '@mapstore/framework/utils/MapInfoUtils';
@@ -334,22 +333,7 @@ export function setupConfiguration({
                     });
                 }
                 if (user?.oidc_config && user?.access_token && store.dispatch) {
-                    const refreshIfNeeded = () => refreshOidcAccessTokenIfNeeded(
-                        user.oidc_config,
-                        store.getState()?.security?.token || user.access_token
-                    ).then((tokenSet) => {
-                        if (tokenSet) {
-                            store.dispatch(refreshSuccess({
-                                access_token: tokenSet.access_token,
-                                refresh_token: tokenSet.refresh_token,
-                                expires: tokenSet.expires_in
-                            }, 'oidc'));
-                        }
-                    }).catch((error) => {
-                        console.error('Could not refresh the OIDC access token.', error);
-                    });
-                    const refreshTimer = window.setInterval(refreshIfNeeded, 30000);
-                    window.addEventListener('pagehide', () => window.clearInterval(refreshTimer), { once: true });
+                    startOidcTokenRefresh(user.oidc_config, user.access_token, store);
                 }
             },
             configEpics: {

@@ -80,11 +80,7 @@ export const deleteGeoLimits = (resourceId, id, type = 'user') => {
         .then(({ data }) => data);
 };
 
-export const getRequestRules = (accessToken) => {
-    return axios.get(getEndpointUrl(RULES), {
-        headers: {
-            ...(accessToken && { Authorization: `Bearer ${accessToken}` })
-        }
-    })
+export const getRequestRules = () => {
+    return axios.get(getEndpointUrl(RULES))
         .then(({ data }) => data);
 };
