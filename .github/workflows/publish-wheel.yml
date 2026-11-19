@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: publish-mapstore-client-${{ github.ref }}
+  group: cn-vg-mapstore-client-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -19,22 +19,34 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Require cn-vg branch
+        run: |
+          if [[ "$GITHUB_REF_NAME" != "cn-vg" ]]; then
+            echo "This overlay build must run from cn-vg (got: $GITHUB_REF_NAME)." >&2
+            exit 1
+          fi
+
+      - name: Apply GeoNoXT overlay
+        run: ./veogeo/apply-overlay.sh
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-
-      - name: Cache npm downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-mapstore-npm-${{ hashFiles('geonode_mapstore_client/client/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-mapstore-npm-
+          cache: npm
+          cache-dependency-path: geonode_mapstore_client/client/package-lock.json
 
       - name: Install client dependencies
         working-directory: geonode_mapstore_client/client
-        run: npm install
+        run: npm ci
+
+      - name: Lint client
+        working-directory: geonode_mapstore_client/client
+        run: npm run lint:ci
+
+      - name: Test client
+        working-directory: geonode_mapstore_client/client
+        run: npm test
 
       - name: Compile production client
         working-directory: geonode_mapstore_client/client
@@ -66,8 +78,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: GeoNode MapStore client ${{ steps.release.outputs.tag }}
           body: |
-            MapStore production assets compiled from `${{ github.sha }}` and packaged as a Python wheel.
-            The wheel and its SHA-256 checksum are attached to this release.
+            MapStore production assets built from the `cn-vg` overlay at `${{ github.sha }}`.
+            The wheel and its SHA-256 checksum are attached to this prerelease.
           prerelease: true
           files: |
             dist/*.whl
