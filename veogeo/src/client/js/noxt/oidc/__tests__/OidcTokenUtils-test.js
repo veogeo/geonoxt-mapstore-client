@@ -43,4 +43,70 @@ describe('OIDC token utilities', () => {
             window.fetch = originalFetch;
         }
     });
+
+    it('shares one rotating refresh request between concurrent GeoServer requests', async() => {
+        const originalFetch = window.fetch;
+        const issuer = 'https://issuer.example.test/';
+        const currentToken = makeAccessToken(Math.floor(Date.now() / 1000) + 30);
+        const refreshedToken = (() => {
+            const payload = btoa(JSON.stringify({
+                exp: Math.floor(Date.now() / 1000) + 3600,
+                iss: issuer,
+                aud: 'geoserver-cloud'
+            })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+            return `header.${payload}.signature`;
+        })();
+        const config = {
+            enabled: true,
+            client_id: 'mapstore-client',
+            discovery_uri: 'https://issuer.example.test/.well-known/openid-configuration/',
+            redirect_uri: 'http://localhost/catalogue/',
+            audience: 'geoserver-cloud'
+        };
+        const storageKey = `geonode:oidc:token:${encodeURIComponent(issuer)}:${encodeURIComponent(config.client_id)}`;
+        sessionStorage.setItem(storageKey, JSON.stringify({
+            access_token: currentToken,
+            refresh_token: 'old-refresh-token',
+            expires_at: Date.now() - 1000
+        }));
+        let discoveryRequests = 0;
+        let tokenRequests = 0;
+        window.fetch = (requestUrl) => {
+            if (String(requestUrl) === config.discovery_uri) {
+                discoveryRequests += 1;
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({
+                        issuer,
+                        authorization_endpoint: `${issuer}authorize`,
+                        token_endpoint: `${issuer}token`
+                    })
+                });
+            }
+            tokenRequests += 1;
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({
+                    access_token: refreshedToken,
+                    refresh_token: 'rotated-refresh-token',
+                    expires_in: 3600,
+                    token_type: 'Bearer'
+                })
+            });
+        };
+
+        try {
+            const results = await Promise.all([
+                refreshOidcAccessTokenIfNeeded(config, currentToken),
+                refreshOidcAccessTokenIfNeeded(config, currentToken)
+            ]);
+            expect(discoveryRequests).toBe(1);
+            expect(tokenRequests).toBe(1);
+            expect(results[0].access_token).toBe(refreshedToken);
+            expect(results[1].access_token).toBe(refreshedToken);
+        } finally {
+            window.fetch = originalFetch;
+            sessionStorage.removeItem(storageKey);
+        }
+    });
 });

@@ -248,7 +248,10 @@ export const getOidcAccessToken = async(
     return allowSilentAuthorization ? beginAuthorization(config, discovery, storageKey) : null;
 };
 
-export const refreshOidcAccessTokenIfNeeded = async(config, currentAccessToken) => {
+let refreshInFlightAccessToken;
+let refreshInFlightPromise;
+
+const refreshOidcAccessTokenIfNeededInternal = async(config, currentAccessToken) => {
     if (!config?.enabled || !currentAccessToken) return null;
 
     const currentExpiresAt = getOidcAccessTokenExpiresAt(currentAccessToken);
@@ -270,4 +273,22 @@ export const refreshOidcAccessTokenIfNeeded = async(config, currentAccessToken) 
         return null;
     }
     return refreshedTokenSet;
+};
+
+export const refreshOidcAccessTokenIfNeeded = (config, currentAccessToken) => {
+    if (!config?.enabled || !currentAccessToken) return Promise.resolve(null);
+    if (refreshInFlightPromise && refreshInFlightAccessToken === currentAccessToken) {
+        return refreshInFlightPromise;
+    }
+
+    refreshInFlightAccessToken = currentAccessToken;
+    const pending = refreshOidcAccessTokenIfNeededInternal(config, currentAccessToken);
+    const tracked = pending.finally(() => {
+        if (refreshInFlightPromise === tracked) {
+            refreshInFlightPromise = undefined;
+            refreshInFlightAccessToken = undefined;
+        }
+    });
+    refreshInFlightPromise = tracked;
+    return tracked;
 };

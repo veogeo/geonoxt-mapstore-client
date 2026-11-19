@@ -1,6 +1,6 @@
 /**
  * GeoNoXT OIDC account adapter. MapStore still uses GeoNode's browser session
- * for API calls; this only attaches the provider token for the refresh manager.
+ * for GeoNode API calls; the provider token is refreshed for GeoServer Cloud OGC calls.
  */
 export const getOidcAccountInfo = async(oidcConfig, getOidcAccessToken, getSessionUserInfo) => {
     let token = await getOidcAccessToken(oidcConfig);

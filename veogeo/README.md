@@ -16,8 +16,12 @@ patch and copies these source modules into the build tree before compiling.
   GeoNoXT-owned source modules into the upstream build tree.
 
 GeoNode API requests continue to use the browser's GeoNode session cookies.
-The OIDC access token is retained for refresh management; this overlay does not
-add Bearer headers to MapStore's same-origin API calls.
+Same-origin GeoServer Cloud OGC requests use the current OIDC access token as a
+Bearer credential. The request interceptor refreshes it only when it is near
+expiry and tries silent authorization through the provider's browser session
+when the token is missing or expired. It attaches the token only to same-origin
+`/geoserver/` and `/gs/` paths, never to GeoNode API requests or third-party
+hosts; a failed token refresh does not end the GeoNode session.
 
 ## Local build
 

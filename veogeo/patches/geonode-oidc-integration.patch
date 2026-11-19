@@ -43,9 +43,12 @@ diff --git a/geonode_mapstore_client/client/js/utils/AppUtils.js b/geonode_mapst
 index cb912a9d5..712dc7230 100644
 --- a/geonode_mapstore_client/client/js/utils/AppUtils.js
 +++ b/geonode_mapstore_client/client/js/utils/AppUtils.js
-@@ -30,0 +31 @@ import axios from '@mapstore/framework/libs/ajax';
+@@ -30,0 +31,2 @@ import axios from '@mapstore/framework/libs/ajax';
 +import { startOidcTokenRefresh } from '@js/noxt/oidc/OidcTokenRefresh';
-@@ -333,0 +335,3 @@ export function setupConfiguration({
++import { installGeoServerOidcRequestInterceptor } from '@js/noxt/oidc/GeoServerAuth';
+@@ -68,0 +70 @@ export function initializeApp() {
++    installGeoServerOidcRequestInterceptor(axios);
+@@ -333,0 +337,3 @@ export function setupConfiguration({
 +                if (user?.oidc_config && user?.access_token && store.dispatch) {
 +                    startOidcTokenRefresh(user.oidc_config, user.access_token, store);
 +                }
@@ -56,8 +59,8 @@ index 56ec4f6cc..5654c2889 100644
 @@ -15,0 +16,6 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
 +
 +        if getattr(settings, "NOXT_GEOSERVER_CLOUD_ENABLED", False):
-+            # GeoServer Cloud is exposed on the same origin. The browser's
-+            # Django/GeoServer session cookies authenticate MapStore requests.
++            # GeoServer Cloud OGC calls use the refreshed OIDC token in the
++            # client interceptor; GeoNode APIs keep using the Django session.
 +            return []
 +
 @@ -33 +39,2 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
@@ -74,8 +77,8 @@ index db9778c82..690137741 100644
 +        NOXT_GEOSERVER_CLOUD_ENABLED=True,
 +        OGC_SERVER={"default": {"PUBLIC_LOCATION": "https://ogc.example.test/geoserver/"}},
 +    )
-+    def test_cloud_request_rules_rely_on_the_shared_session(self):
-+        """Cloud MapStore requests use the same-origin session cookies, not Bearer rules."""
++    def test_cloud_request_rules_leave_geo_server_auth_to_the_client(self):
++        """Cloud GeoNode APIs use session cookies; OGC Bearer auth is added client-side."""
 +        from geonode_mapstore_client.handlers import BaseConfigurationRuleHandler
 +        from geonode_mapstore_client.registry import RequestConfigurationRulesRegistry
 +
