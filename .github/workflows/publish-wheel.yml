@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -30,9 +30,10 @@ jobs:
         run: ./veogeo/apply-overlay.sh
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24.x'
+          package-manager-cache: false
 
       - name: Install client dependencies
         working-directory: geonode_mapstore_client/client
@@ -51,7 +52,7 @@ jobs:
         run: npm run compile
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -70,7 +71,7 @@ jobs:
           echo "tag=mapstore-client-${version}-${short_sha}" >> "$GITHUB_OUTPUT"
 
       - name: Publish wheel release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           target_commitish: ${{ github.sha }}
