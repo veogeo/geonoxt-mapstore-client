@@ -1,4 +1,4 @@
-name: Manual cn-vg MapStore client build
+name: Publish GeoNode MapStore client wheel
 
 on:
   workflow_dispatch:
