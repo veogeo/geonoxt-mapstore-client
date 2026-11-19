@@ -1,0 +1,97 @@
+diff --git a/geonode_mapstore_client/apps.py b/geonode_mapstore_client/apps.py
+index 9e5ae8549..9ccdd2297 100644
+--- a/geonode_mapstore_client/apps.py
++++ b/geonode_mapstore_client/apps.py
+@@ -91,0 +92 @@ def run_setup_hooks(*args, **kwargs):
++        re_path(r"^api/v2/oidc/config/?$", views.OIDCClientConfigView.as_view(), name="mapstore-oidc-config"),
+diff --git a/geonode_mapstore_client/client/js/api/geonode/v2/constants.js b/geonode_mapstore_client/client/js/api/geonode/v2/constants.js
+index fcb36c040..07aec0552 100644
+--- a/geonode_mapstore_client/client/js/api/geonode/v2/constants.js
++++ b/geonode_mapstore_client/client/js/api/geonode/v2/constants.js
+@@ -40 +40,2 @@ let endpoints = {
+-    'userinfo': '/api/v2/userinfo/'
++    'userinfo': '/api/v2/userinfo/',
++    'oidc_config': '/api/v2/oidc/config/'
+@@ -57,0 +59 @@ export const USER_INFO = 'userinfo';
++export const OIDC_CONFIG = 'oidc_config';
+diff --git a/geonode_mapstore_client/client/js/api/geonode/v2/index.js b/geonode_mapstore_client/client/js/api/geonode/v2/index.js
+index b51629b1e..6a7b08c4e 100644
+--- a/geonode_mapstore_client/client/js/api/geonode/v2/index.js
++++ b/geonode_mapstore_client/client/js/api/geonode/v2/index.js
+@@ -41 +41,2 @@ import {
+-    USER_INFO
++    USER_INFO,
++    OIDC_CONFIG
+@@ -42,0 +44,2 @@ import {
++import { getOidcAccessToken } from '@js/noxt/oidc/OidcTokenUtils';
++import { getOidcAccountInfo } from '@js/noxt/oidc/account';
+@@ -492,4 +495,9 @@ export const getAccountInfo = () => {
+-    return getUserInfo(apikey)
+-        .then((info) => {
+-            let {preferred_username: username, sub: pk } = info;
+-            pk = Number.isNaN(Number(pk)) ? pk : Number(pk);
++    return axios.get(getEndpointUrl(OIDC_CONFIG))
++        .then(async({ data: oidcConfig }) => {
++            if (oidcConfig?.enabled) {
++                return getOidcAccountInfo(oidcConfig, getOidcAccessToken, () => getUserInfo(null));
++            }
++            const info = await getUserInfo(apikey).catch(() => null);
++            if (!info) return null;
++            const { preferred_username: username, sub } = info;
++            const pk = Number.isNaN(Number(sub)) ? sub : Number(sub);
+diff --git a/geonode_mapstore_client/client/js/utils/AppUtils.js b/geonode_mapstore_client/client/js/utils/AppUtils.js
+index cb912a9d5..712dc7230 100644
+--- a/geonode_mapstore_client/client/js/utils/AppUtils.js
++++ b/geonode_mapstore_client/client/js/utils/AppUtils.js
+@@ -30,0 +31 @@ import axios from '@mapstore/framework/libs/ajax';
++import { startOidcTokenRefresh } from '@js/noxt/oidc/OidcTokenRefresh';
+@@ -333,0 +335,3 @@ export function setupConfiguration({
++                if (user?.oidc_config && user?.access_token && store.dispatch) {
++                    startOidcTokenRefresh(user.oidc_config, user.access_token, store);
++                }
+diff --git a/geonode_mapstore_client/handlers.py b/geonode_mapstore_client/handlers.py
+index 56ec4f6cc..5654c2889 100644
+--- a/geonode_mapstore_client/handlers.py
++++ b/geonode_mapstore_client/handlers.py
+@@ -15,0 +16,6 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
++
++        if getattr(settings, "NOXT_GEOSERVER_CLOUD_ENABLED", False):
++            # GeoServer Cloud is exposed on the same origin. The browser's
++            # Django/GeoServer session cookies authenticate MapStore requests.
++            return []
++
+@@ -33 +39,2 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
+-        return rules
+\ No newline at end of file
++
++        return rules
+diff --git a/geonode_mapstore_client/tests.py b/geonode_mapstore_client/tests.py
+index db9778c82..690137741 100644
+--- a/geonode_mapstore_client/tests.py
++++ b/geonode_mapstore_client/tests.py
+@@ -309,0 +310,19 @@ class RequestConfigurationViewTestCase(GeoNodeBaseTestSupport):
++    @override_settings(
++        NOXT_GEOSERVER_CLOUD_ENABLED=True,
++        OGC_SERVER={"default": {"PUBLIC_LOCATION": "https://ogc.example.test/geoserver/"}},
++    )
++    def test_cloud_request_rules_rely_on_the_shared_session(self):
++        """Cloud MapStore requests use the same-origin session cookies, not Bearer rules."""
++        from geonode_mapstore_client.handlers import BaseConfigurationRuleHandler
++        from geonode_mapstore_client.registry import RequestConfigurationRulesRegistry
++
++        RequestConfigurationRulesRegistry.REGISTRY = [BaseConfigurationRuleHandler]
++        self.client.force_authenticate(user=self.user)
++
++        response = self.client.get(reverse("request-rules"))
++
++        self.assertEqual(response.status_code, 200)
++        rules = response.json()["rules"]
++        self.assertEqual(rules, [])
++        self.assertFalse(any("Authorization" in rule.get("headers", {}) for rule in rules))
++
+diff --git a/geonode_mapstore_client/views.py b/geonode_mapstore_client/views.py
+index fe5ecbd9b..f1733ffe3 100644
+--- a/geonode_mapstore_client/views.py
++++ b/geonode_mapstore_client/views.py
+@@ -14,0 +15 @@ from django.core.cache import cache
++from .noxt import OIDCClientConfigView
