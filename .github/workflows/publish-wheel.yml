@@ -33,12 +33,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: npm
-          cache-dependency-path: geonode_mapstore_client/client/package-lock.json
 
       - name: Install client dependencies
         working-directory: geonode_mapstore_client/client
-        run: npm ci
+        run: npm install
 
       - name: Lint client
         working-directory: geonode_mapstore_client/client
