@@ -58,7 +58,7 @@ index 56ec4f6cc..5654c2889 100644
 +++ b/geonode_mapstore_client/handlers.py
 @@ -1,0 +2 @@
 +import re
-@@ -15,0 +16,12 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
+@@ -16,0 +17,12 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
 +
 +        if getattr(settings, "NOXT_GEOSERVER_CLOUD_ENABLED", False):
 +            geoserver_location = settings.GEOSERVER_PUBLIC_LOCATION.rstrip("/")
