@@ -3,6 +3,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 overlay_root="$repo_root/veogeo"
 patch_file="$overlay_root/patches/geonode-oidc-integration.patch"
+mapstore_core="$repo_root/geonode_mapstore_client/client/MapStore2"
+mapstore_core_patch="$overlay_root/patches/mapstore-wfst-schema-location.patch"
 if git -C "$repo_root" apply --unidiff-zero --reverse --check "$patch_file" >/dev/null 2>&1; then
     echo "GeoNoXT MapStore integration patch already applied."
 else
@@ -40,3 +42,10 @@ cp -R "$overlay_root/src/python/geonode_mapstore_client/noxt/." "$repo_root/geon
 mkdir -p "$repo_root/geonode_mapstore_client/client/js/noxt/oidc"
 cp -R "$overlay_root/src/client/js/noxt/oidc/." "$repo_root/geonode_mapstore_client/client/js/noxt/oidc/"
 echo "Installed GeoNoXT OIDC source modules."
+if git -C "$mapstore_core" apply --reverse --check "$mapstore_core_patch" >/dev/null 2>&1; then
+    echo "MapStore WFS-T schema patch already applied."
+else
+    git -C "$mapstore_core" apply --check "$mapstore_core_patch"
+    git -C "$mapstore_core" apply "$mapstore_core_patch"
+    echo "Applied MapStore WFS-T schema patch."
+fi
