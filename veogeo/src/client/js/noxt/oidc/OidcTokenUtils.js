@@ -44,7 +44,7 @@ export const getOidcAccessTokenExpiresAt = (accessToken) => {
     }
 };
 
-// Check routing claims here; the gateway verifies the JWT signature and full token validity.
+// GeoServer Cloud verifies the JWT signature and full token validity.
 const validateAccessTokenClaims = (accessToken, issuer, audience) => {
     const claims = decodeJwtPayload(accessToken);
     const now = Math.floor(Date.now() / 1000);

@@ -6,11 +6,21 @@ import {
     refreshOidcAccessTokenIfNeeded
 } from './OidcTokenUtils';
 
-export const isSameOriginGeoServerRequest = (requestUrl, currentUrl) => {
+export const isSameOriginGeoServerRequest = (requestUrl, currentUrl, geoserverPublicLocation) => {
     try {
         const page = new URL(currentUrl);
         const request = new URL(requestUrl, page);
-        return request.origin === page.origin && /(?:^|\/)(?:geoserver|gs)(?:\/|$)/i.test(request.pathname);
+        if (request.origin !== page.origin) return false;
+
+        if (!geoserverPublicLocation) {
+            return /(?:^|\/)geoserver(?:\/|$)/i.test(request.pathname);
+        }
+
+        const geoserver = new URL(geoserverPublicLocation, page);
+        const basePath = geoserver.pathname.replace(/\/+$/, '');
+        if (geoserver.origin !== page.origin || !basePath || basePath === '/') return false;
+
+        return request.pathname === basePath || request.pathname.startsWith(basePath + '/');
     } catch (error) {
         return false;
     }
@@ -23,12 +33,15 @@ export const applyGeoServerBearerAuthorization = async(
     refreshTokenIfNeeded = refreshOidcAccessTokenIfNeeded,
     recoverAccessToken = getOidcAccessToken
 ) => {
-    if (!isSameOriginGeoServerRequest(requestConfig.url, currentUrl)) return requestConfig;
-
     const security = store?.getState()?.security;
     const oidcConfig = security?.user?.oidc_config;
+    if (!oidcConfig?.enabled || !isSameOriginGeoServerRequest(
+        requestConfig.url,
+        currentUrl,
+        oidcConfig.geoserver_public_location
+    )) return requestConfig;
+
     let accessToken = security?.token;
-    if (!oidcConfig?.enabled) return requestConfig;
 
     let recoveryAttempted = false;
     let tokenSet;

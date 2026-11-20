@@ -14,9 +14,9 @@ const makeAccessToken = (expiresAt) => {
 };
 
 describe('GeoServer OIDC request authentication', () => {
-    it('matches only same-origin GeoServer and GeoServer alias paths', () => {
+    it('matches only direct same-origin GeoServer paths', () => {
         expect(isSameOriginGeoServerRequest('/geoserver/wfs', 'http://localhost/catalogue/')).toBe(true);
-        expect(isSameOriginGeoServerRequest('/gs/wfs', 'http://localhost/catalogue/')).toBe(true);
+        expect(isSameOriginGeoServerRequest('/gs/wfs', 'http://localhost/catalogue/')).toBe(false);
         expect(isSameOriginGeoServerRequest('https://other.example/geoserver/wfs', 'http://localhost/')).toBe(false);
         expect(isSameOriginGeoServerRequest('/api/v2/datasets', 'http://localhost/')).toBe(false);
     });
@@ -67,7 +67,7 @@ describe('GeoServer OIDC request authentication', () => {
             dispatch: () => {}
         };
         const request = await applyGeoServerBearerAuthorization(
-            { url: '/gs/wfs', headers: {} },
+            { url: '/geoserver/wfs', headers: {} },
             store,
             'http://localhost/catalogue/',
             () => Promise.reject(new Error('Refresh token rejected')),

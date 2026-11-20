@@ -19,8 +19,7 @@ GeoNode API requests continue to use the browser's GeoNode session cookies.
 Same-origin GeoServer Cloud OGC requests use the current OIDC access token as a
 Bearer credential. The request interceptor refreshes it only when it is near
 expiry and tries silent authorization through the provider's browser session
-when the token is missing or expired. It attaches the token only to same-origin
-`/geoserver/` and `/gs/` paths, never to GeoNode API requests or third-party
+when the token is missing or expired. It attaches the token only to the configured same-origin GeoServer public URL, never to GeoNode API requests or third-party
 hosts; a failed token refresh does not end the GeoNode session.
 
 ## Local build

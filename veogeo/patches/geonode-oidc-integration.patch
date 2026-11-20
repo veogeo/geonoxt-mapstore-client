@@ -56,14 +56,22 @@ diff --git a/geonode_mapstore_client/handlers.py b/geonode_mapstore_client/handl
 index 56ec4f6cc..5654c2889 100644
 --- a/geonode_mapstore_client/handlers.py
 +++ b/geonode_mapstore_client/handlers.py
-@@ -15,0 +16,6 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
+@@ -1,0 +2 @@
++import re
+@@ -15,0 +16,12 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
 +
 +        if getattr(settings, "NOXT_GEOSERVER_CLOUD_ENABLED", False):
-+            # GeoServer Cloud OGC calls use the refreshed OIDC token in the
-+            # client interceptor; GeoNode APIs keep using the Django session.
-+            return []
++            geoserver_location = settings.GEOSERVER_PUBLIC_LOCATION.rstrip("/")
++            if not geoserver_location:
++                return []
++            return [
++                {
++                    "urlPattern": f"^{re.escape(geoserver_location)}/.*$",
++                    "headers": {"Authorization": "Bearer ${securityToken}"},
++                }
++            ]
 +
-@@ -33 +39,2 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
+@@ -33 +45,2 @@ class BaseConfigurationRuleHandler(BaseRequestConfigurationRuleHandler):
 -        return rules
 \ No newline at end of file
 +
@@ -72,13 +80,13 @@ diff --git a/geonode_mapstore_client/tests.py b/geonode_mapstore_client/tests.py
 index db9778c82..690137741 100644
 --- a/geonode_mapstore_client/tests.py
 +++ b/geonode_mapstore_client/tests.py
-@@ -309,0 +310,19 @@ class RequestConfigurationViewTestCase(GeoNodeBaseTestSupport):
+@@ -309,0 +310,21 @@ class RequestConfigurationViewTestCase(GeoNodeBaseTestSupport):
 +    @override_settings(
 +        NOXT_GEOSERVER_CLOUD_ENABLED=True,
-+        OGC_SERVER={"default": {"PUBLIC_LOCATION": "https://ogc.example.test/geoserver/"}},
++        GEOSERVER_PUBLIC_LOCATION="https://ogc.example.test/geoserver/",
 +    )
-+    def test_cloud_request_rules_leave_geo_server_auth_to_the_client(self):
-+        """Cloud GeoNode APIs use session cookies; OGC Bearer auth is added client-side."""
++    def test_cloud_request_rules_use_direct_geoserver_bearer_auth(self):
++        """The client sends OIDC Bearer auth directly to GeoServer OGC services."""
 +        from geonode_mapstore_client.handlers import BaseConfigurationRuleHandler
 +        from geonode_mapstore_client.registry import RequestConfigurationRulesRegistry
 +
@@ -89,8 +97,10 @@ index db9778c82..690137741 100644
 +
 +        self.assertEqual(response.status_code, 200)
 +        rules = response.json()["rules"]
-+        self.assertEqual(rules, [])
-+        self.assertFalse(any("Authorization" in rule.get("headers", {}) for rule in rules))
++        self.assertEqual(len(rules), 1)
++        self.assertEqual(rules[0]["urlPattern"], r"^https://ogc\.example\.test/geoserver/.*$")
++        self.assertEqual(rules[0]["headers"], {"Authorization": "Bearer ${securityToken}"})
++        self.assertNotIn("access_token", rules[0].get("params", {}))
 +
 diff --git a/geonode_mapstore_client/views.py b/geonode_mapstore_client/views.py
 index fe5ecbd9b..f1733ffe3 100644
