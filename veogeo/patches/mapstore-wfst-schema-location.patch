@@ -59,3 +59,13 @@ index dd52cace9..5d5dec58c 100644
      + `${schemaLocation}>`
      + `${operations.join("")}`
      + '</wfs:Transaction>';
+
+diff --git a/web/client/epics/wfsquery.js b/web/client/epics/wfsquery.js
+--- a/web/client/epics/wfsquery.js
++++ b/web/client/epics/wfsquery.js
+@@ -120,4 +120,5 @@ export const featureTypeSelectedEpic = (action$, store) =>
+                         var originalData = {
++                            ...response.data,
+                             featureTypes: [response.data.featureTypes[0]]
+                         };
+                         var info = {
