@@ -33,7 +33,10 @@ export const applyGeoServerBearerAuthorization = async(
     refreshTokenIfNeeded = refreshOidcAccessTokenIfNeeded,
     recoverAccessToken = getOidcAccessToken
 ) => {
-    const security = store?.getState()?.security;
+    // GeoNode pages can issue Axios requests before a MapStore Redux store is
+    // created (or without a MapStore store entirely). StateUtils.getStore()
+    // returns an empty object in that case, so guard the method itself.
+    const security = typeof store?.getState === 'function' ? store.getState()?.security : undefined;
     const oidcConfig = security?.user?.oidc_config;
     if (!oidcConfig?.enabled || !isSameOriginGeoServerRequest(
         requestConfig.url,
