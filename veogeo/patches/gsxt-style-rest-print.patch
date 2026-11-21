@@ -1,0 +1,92 @@
+--- a/geonode_mapstore_client/client/js/epics/index.js
++++ b/geonode_mapstore_client/client/js/epics/index.js
+@@ -11,8 +11,9 @@
+  */
+ import Rx from "rxjs";
+ 
+-import { setEditPermissionStyleEditor, INIT_STYLE_SERVICE } from "@mapstore/framework/actions/styleeditor";
++import { setEditPermissionStyleEditor, INIT_STYLE_SERVICE, initStyleService } from "@mapstore/framework/actions/styleeditor";
+ import { getSelectedLayer, layersSelector } from "@mapstore/framework/selectors/layers";
++import { styleServiceSelector } from "@mapstore/framework/selectors/styleeditor";
+ import { getConfigProp } from "@mapstore/framework/utils/ConfigUtils";
+ import { getDatasetsByPk, getDatasetByPk } from '@js/api/geonode/v2';
+ import { MAP_CONFIG_LOADED } from '@mapstore/framework/actions/config';
+@@ -29,8 +30,6 @@
+ import { startAsyncProcess, STOP_ASYNC_PROCESS } from "@js/actions/resourceservice";
+ import { error as errorNotification } from "@mapstore/framework/actions/notifications";
+ import { getProcessErrorInfo } from "@js/utils/ErrorUtils";
+-import { getResourcePerms, getViewedResourceType } from "@js/selectors/resource";
+-import { ResourceTypes } from '@mapstore/framework/utils/GeoNodeUtils';
+ // We need to include missing epics. The plugins that normally include this epic is not used.
+ 
+ /**
+@@ -44,24 +43,41 @@
+     action$.ofType(SELECT_NODE, INIT_STYLE_SERVICE)
+         .filter(({ nodeType }) => nodeType && nodeType === "layer" && !getConfigProp("disableCheckEditPermissions")
+         || !nodeType && !getConfigProp("disableCheckEditPermissions"))
+-        .switchMap(() => {
++        .switchMap((action) => {
+             const state = getState() || {};
+             const layer = getSelectedLayer(state);
+             const permissions = layer?.perms || [];
+-            const resourceType = getViewedResourceType(state);
+-            const resourcePerms = getResourcePerms(state);
+-            // user with edit permession on a map resource
+-            // should be able to edit all the styles excluding the default one
+-            const canEditStyles = resourceType === ResourceTypes.MAP
+-                ? resourcePerms.includes("change_resourcebase")
+-                : permissions.includes("change_dataset_style");
++            const canEditStyles = permissions.includes("change_dataset_style");
+             const canEdit = permissions.includes("change_dataset_data");
++            const datasetId = layer?.extendedParams?.pk;
++            const geoNodeSettings = getConfigProp("geoNodeSettings") || {};
++            const gatewayRoot = (geoNodeSettings.geoserverStyleRestUrl || "").replace(/\/+$/, "");
++            const directGeoServerUrl = (geoNodeSettings.geoserverUrl || "").replace(/\/+$/, "");
++            const gatewayBaseUrl = datasetId && gatewayRoot
++                ? `${gatewayRoot}/datasets/${encodeURIComponent(datasetId)}/`
++                : null;
++            const currentStyleService = action.service || styleServiceSelector(state) || {};
++            const currentBaseUrl = (currentStyleService.baseUrl || "").replace(/\/+$/, "");
++            const isCurrentDatasetGateway = gatewayRoot
++                && currentBaseUrl.startsWith(`${gatewayRoot}/datasets/`);
++            const gatewayInit = gatewayBaseUrl
++                && (!currentBaseUrl || currentBaseUrl === directGeoServerUrl || isCurrentDatasetGateway)
++                && currentBaseUrl !== gatewayBaseUrl.replace(/\/+$/, "")
++                ? initStyleService({
++                    ...currentStyleService,
++                    baseUrl: gatewayBaseUrl,
++                    isStatic: false,
++                    datasetScoped: true,
++                    datasetId: String(datasetId)
++                }, action.config)
++                : null;
+             return layer
+                 ? Rx.Observable.of(
+                     setPermission({canEdit}),
+                     setEditPermissionStyleEditor(canEditStyles),
+                     setSelectedDatasetPermissions(permissions),
+-                    setSelectedLayer(layer)
++                    setSelectedLayer(layer),
++                    ...(gatewayInit ? [gatewayInit] : [])
+                 )
+                 : Rx.Observable.of(
+                     setPermission({canEdit: false}),
+--- a/geonode_mapstore_client/templates/geonode-mapstore-client/_geonode_config.html
++++ b/geonode_mapstore_client/templates/geonode-mapstore-client/_geonode_config.html
+@@ -171,7 +171,7 @@
+                     useCORS: useCORS
+                 },
+                 extensionsFolder: extensionsFolder,
+-                printUrl: geoServerPublicLocation + 'pdf/info.json',
++                printUrl: siteUrl + 'gsxt/pdf/info.json',
+                 mapboxAccessToken: '{{ MAPBOX_ACCESS_TOKEN }}',
+                 geoNodeApi: {
+                     endpointV1: siteUrl + 'api',
+@@ -211,6 +211,7 @@
+                     createLayer: createLayer,
+                     geonodeUrl: siteUrl,
+                     geoserverUrl: geoServerPublicLocation,
++                    geoserverStyleRestUrl: siteUrl + 'gsxt',
+                     siteName: siteName,
+                     defaultTileSize: defaultTileSize,
+                     defaultLayerFormat: defaultLayerFormat,

@@ -1,0 +1,29 @@
+--- a/web/client/epics/styleeditor.js
++++ b/web/client/epics/styleeditor.js
+@@ -61,6 +61,7 @@
+ import { updateStyleService } from '../api/StyleEditor';
+ import { getDefaultUrl } from '../utils/URLUtils';
+ import { resetLayerLegendFilter } from '../utils/FilterUtils';
++import { getConfigProp } from '../utils/ConfigUtils';
+ 
+ /*
+  * Observable to get code of a style, it works only in edit status
+@@ -261,8 +262,17 @@
+             }
+ 
+             const layerUrl = getDefaultUrl(layer.url).split(geoserverName);
+-            const baseUrl = `${layerUrl[0]}${geoserverName}`;
++            const directBaseUrl = `${layerUrl[0]}${geoserverName}`;
+             const lastStyleService = styleServiceSelector(state);
++            const datasetId = layer?.extendedParams?.pk;
++            const gatewayRoot = (getConfigProp('geoNodeSettings')?.geoserverStyleRestUrl || '').replace(/\/+$/, '');
++            const datasetGatewayBaseUrl = datasetId && gatewayRoot
++                ? `${gatewayRoot}/datasets/${encodeURIComponent(datasetId)}`
++                : null;
++            const currentStyleBaseUrl = (lastStyleService?.baseUrl || '').replace(/\/+$/, '');
++            const baseUrl = datasetGatewayBaseUrl && currentStyleBaseUrl === datasetGatewayBaseUrl
++                ? `${datasetGatewayBaseUrl}/`
++                : directBaseUrl;
+ 
+             return Rx.Observable.concat(
+                 Rx.Observable.of(

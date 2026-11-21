@@ -65,3 +65,19 @@ else
     git -C "$mapstore_core" apply "$mapstore_static_assets_patch"
     echo "Applied MapStore static asset output patch."
 fi
+gsxt_style_rest_patch="$overlay_root/patches/gsxt-style-rest-print.patch"
+if git -C "$repo_root" apply --reverse --check "$gsxt_style_rest_patch" >/dev/null 2>&1; then
+    echo "GeoNoXT GSXT style and print integration already applied."
+else
+    git -C "$repo_root" apply --check "$gsxt_style_rest_patch"
+    git -C "$repo_root" apply "$gsxt_style_rest_patch"
+    echo "Applied GeoNoXT GSXT style and print integration."
+fi
+gsxt_mapstore_core_patch="$overlay_root/patches/mapstore-core-gsxt-style-rest.patch"
+if git -C "$mapstore_core" apply --reverse --check "$gsxt_mapstore_core_patch" >/dev/null 2>&1; then
+    echo "MapStore core GSXT style integration already applied."
+else
+    git -C "$mapstore_core" apply --check "$gsxt_mapstore_core_patch"
+    git -C "$mapstore_core" apply "$gsxt_mapstore_core_patch"
+    echo "Applied MapStore core GSXT style integration."
+fi
