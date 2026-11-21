@@ -49,3 +49,11 @@ else
     git -C "$mapstore_core" apply "$mapstore_core_patch"
     echo "Applied MapStore WFS-T schema patch."
 fi
+mapstore_static_assets_patch="$overlay_root/patches/mapstore-static-assets.patch"
+if git -C "$mapstore_core" apply --reverse --check "$mapstore_static_assets_patch" >/dev/null 2>&1; then
+    echo "MapStore static asset output patch already applied."
+else
+    git -C "$mapstore_core" apply --check "$mapstore_static_assets_patch"
+    git -C "$mapstore_core" apply "$mapstore_static_assets_patch"
+    echo "Applied MapStore static asset output patch."
+fi
