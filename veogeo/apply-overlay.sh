@@ -42,6 +42,14 @@ cp -R "$overlay_root/src/python/geonode_mapstore_client/noxt/." "$repo_root/geon
 mkdir -p "$repo_root/geonode_mapstore_client/client/js/noxt/oidc"
 cp -R "$overlay_root/src/client/js/noxt/oidc/." "$repo_root/geonode_mapstore_client/client/js/noxt/oidc/"
 echo "Installed GeoNoXT OIDC source modules."
+mapstore_viewer_patch="$overlay_root/patches/mapstore-viewer-lifecycle.patch"
+if git -C "$repo_root" apply --reverse --check "$mapstore_viewer_patch" >/dev/null 2>&1; then
+    echo "MapStore viewer lifecycle patch already applied."
+else
+    git -C "$repo_root" apply --check "$mapstore_viewer_patch"
+    git -C "$repo_root" apply "$mapstore_viewer_patch"
+    echo "Applied MapStore viewer lifecycle patch."
+fi
 if git -C "$mapstore_core" apply --reverse --check "$mapstore_core_patch" >/dev/null 2>&1; then
     echo "MapStore WFS-T schema patch already applied."
 else

@@ -1,0 +1,14 @@
+diff --git a/build/buildConfig.js b/build/buildConfig.js
+--- a/build/buildConfig.js
++++ b/build/buildConfig.js
+@@ -283,7 +283,7 @@
+             {
+                 test: /\.(png|jpg|gif)$/,
+                 use: [{
+                     loader: 'url-loader',
+                     options: {
+-                        name: "[path][name].[ext]",
++                        name: "assets/[name].[hash:8].[ext]",
+                         limit: 8192
+                     }
+                 }] // inline base64 URLs for <=8k images, direct URLs for the rest

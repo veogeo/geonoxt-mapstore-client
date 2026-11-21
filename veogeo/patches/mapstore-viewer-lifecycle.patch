@@ -1,0 +1,86 @@
+--- a/geonode_mapstore_client/client/js/utils/AppUtils.js
++++ b/geonode_mapstore_client/client/js/utils/AppUtils.js
+@@ -188,10 +188,12 @@
+     setConfigProp('locale', locale);
+     const geoNodeResourcesInfo = getConfigProp('geoNodeResourcesInfo') || {};
+     setConfigProp('geoNodeResourcesInfo', { ...geoNodeResourcesInfo, ...resourcesTotalCount });
+-    const securityState = user?.access_token
++    // GeoNode's session userinfo is valid even when optional OIDC bearer auth is disabled.
++    // Keep its permissions in MapStore security state; only the token itself is optional.
++    const securityState = user
+         ? {
+             security: {
+-                user: user,
++                user,
+                 token: user.access_token
+             }
+         }
+--- a/geonode_mapstore_client/client/js/epics/gnresource.js
++++ b/geonode_mapstore_client/client/js/epics/gnresource.js
+@@ -575,7 +575,6 @@
+                     search: `?next=${getCataloguePath('/catalogue')}${pathname ? `/#${pathname}` : ''}`
+                 });
+                 window.location.href = formattedUrl;
+-                window.reload();
+                 return Observable.empty();
+             }
+ 
+--- a/geonode_mapstore_client/client/js/routes/Viewer.jsx
++++ b/geonode_mapstore_client/client/js/routes/Viewer.jsx
+@@ -74,6 +74,7 @@
+     loaderComponent,
+     plugins,
+     match,
++    location,
+     resource,
+     siteName,
+     resourceType,
+@@ -99,20 +100,17 @@
+         pluginsConfig
+     });
+ 
+-    const viewer = useRef({ requestedPk: undefined, prevPluginsLength: null });
+-    const { requestedPk, prevPluginsLength } = viewer.current ?? {};
++    const routeSignature = JSON.stringify({
++        resourceType,
++        name,
++        params: match.params,
++        search: location?.search || ''
++    });
++    const viewer = useRef({ requestedRouteSignature: undefined });
++    const pluginLoading = pending;
+     useEffect(() => {
+-        if (!prevPluginsLength || pluginsCfgLength === 0) {
+-            // to ensure and prevent loading and requesting of resource configurations
+-            // post initialization when user plugin is employed
+-            viewer.current.prevPluginsLength = pluginsCfgLength;
+-        }
+-    }, [pluginsCfgLength]);
+-
+-    const pluginLoading = prevPluginsLength !== null && prevPluginsLength !== pluginsCfgLength ? false : pending;
+-    useEffect(() => {
+-        if (!pluginLoading && pk !== requestedPk) {
+-            viewer.current.requestedPk = pk;
++        if (!pluginLoading && routeSignature !== viewer.current.requestedRouteSignature) {
++            viewer.current.requestedRouteSignature = routeSignature;
+             if (pk === 'new') {
+                 onCreate(resourceType, {
+                     params: match.params
+@@ -124,7 +122,7 @@
+                 });
+             }
+         }
+-    }, [pluginLoading, pk]);
++    }, [pluginLoading, routeSignature]);
+ 
+     const isLoading = isResourceLoading || loadingConfig || pluginLoading;
+     const parsedPlugins = useMemo(() => ({ ...loadedPlugins, ...getPlugins(plugins) }), [loadedPlugins]);
+@@ -141,7 +139,7 @@
+                 content={resource?.abstract}
+             />}
+             {!isLoading ? <ConnectedPluginsContainer
+-                key={className}
++                key={`${className}-${name}`}
+                 id={className}
+                 className={className}
+                 component={MapViewerLayout}
